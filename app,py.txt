@@ -1,0 +1,33 @@
+from flask import Flask, request, jsonify
+import cv2
+import numpy as np
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+# Load the pre-trained MobileNet model and class labels
+net = cv2.dnn.readNetFromCaffe(
+    'deploy.prototxt',        # Path to the prototxt file
+    'mobilenet_iter_73000.caffemodel'  # Path to the model file
+)
+class_names = ['Plastic', 'Paper', 'Metal', 'Glass']  # Adjust based on your model's output
+
+def preprocess_image(image):
+    (h, w) = image.shape[:2]
+    blob = cv2.dnn.blobFromImage(cv2.resize(image, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
+    return blob
+
+@app.route('/upload', methods=['POST'])
+def upload_image():
+    file = request.files['image'].read()
+    np_img = np.fromstring(file, np.uint8)
+    img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+    blob = preprocess_image(img)
+    net.setInput(blob)
+    predictions = net.forward()
+    class_idx = np.argmax(predictions[0])
+    return jsonify({'class': class_names[class_idx]})
+
+if __name__ == '__main__':
+    app.run(debug=True)
